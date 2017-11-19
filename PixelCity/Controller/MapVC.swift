@@ -50,6 +50,8 @@ extension MapVC: MKMapViewDelegate {
         
         imageArray = []
         imageUrlArray = []
+        additionalInfoArray = []
+        
         collectionView?.reloadData()
         
         mapView.addAnnotation(annotation)
@@ -66,7 +68,8 @@ extension MapVC: MKMapViewDelegate {
         retrieveUrls(forAnnotation: annotation) { (finished) in
             if finished {
                 self.retrieveImages(handler: { (finshed) in
-                    print(self.imageUrlArray, self.imageUrlArray.count, self.imageArray.count)
+                    //print(self.imageUrlArray, self.imageUrlArray.count, self.imageArray.count)
+                    print(self.additionalInfoArray)
                     self.removeSpinner()
                     self.removeProgressLabel()
                     self.collectionView?.reloadData()
@@ -112,9 +115,35 @@ extension MapVC: UICollectionViewDelegate, UICollectionViewDataSource {
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         guard let popVC = storyboard?.instantiateViewController(withIdentifier: "PopVC") as? PopVC else {return}
         
-        popVC.initDataForImage(image: imageArray[indexPath.row])
+        popVC.initDataForImage(image: imageArray[indexPath.row], additionalInfo: additionalInfoArray[indexPath.row])
         present(popVC, animated: true, completion: nil)
     }
+}
+
+extension MapVC: UIViewControllerPreviewingDelegate {
+    func previewingContext(_ previewingContext: UIViewControllerPreviewing, viewControllerForLocation location: CGPoint) -> UIViewController? {
+        guard let indexPath = collectionView?.indexPathForItem(at: location), let cell = collectionView?.cellForItem(at: indexPath) else {return nil}
+        
+        guard let popVC = storyboard?.instantiateViewController(withIdentifier: "PopVC") as? PopVC else {return nil}
+        
+        popVC.initDataForImage(image: imageArray[indexPath.row], additionalInfo: additionalInfoArray[indexPath.row])
+        
+        previewingContext.sourceRect = cell.contentView.frame
+        
+        return popVC
+    }
+    
+    func previewingContext(_ previewingContext: UIViewControllerPreviewing, commit viewControllerToCommit: UIViewController) {
+        show(viewControllerToCommit, sender: self)
+    }
+    
+    
+}
+
+struct AdditionalPhotoInformmation {
+    var title = ""
+    var imageDescription = ""
+    var photographerName = ""
 }
 
 class MapVC: UIViewController, UIGestureRecognizerDelegate {
@@ -131,6 +160,7 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
     var collectionView: UICollectionView?
     var imageUrlArray = [String]()
     var imageArray = [UIImage]()
+    var additionalInfoArray = [AdditionalPhotoInformmation]()
     var flowLayout = UICollectionViewFlowLayout()
     
     override func viewDidLoad() {
@@ -149,6 +179,8 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
         collectionView?.dataSource = self
         collectionView?.backgroundColor = #colorLiteral(red: 1, green: 1, blue: 1, alpha: 1)
         pullUpView.addSubview(collectionView!)
+        
+        registerForPreviewing(with: self, sourceView: collectionView!)
     }
     
     func addDoubleTap() {
@@ -232,6 +264,24 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
             for photo in photosDictArray {
                 let postUrl = "https://farm\(photo["farm"]!).staticflickr.com/\(photo["server"]!)/\(photo["id"]!)_\(photo["secret"]!)_h_d.jpg"
                 self.imageUrlArray.append(postUrl)
+                print(photo)
+                //API call to get the name of the photo
+                Alamofire.request(flickrGetPhotoData(forId: photo["id"] as! String, withSecret: photo["secret"] as! String)).responseJSON(completionHandler: { (response) in
+                    if let jsonPhoto = response.result.value as? Dictionary<String, AnyObject> {
+                        if let photoInfo = jsonPhoto["photo"] as? Dictionary<String, AnyObject> {
+                            let title: String = photoInfo["title"]!["_content"] as! String
+                            let description: String = photoInfo["description"]!["_content"] as! String
+                            var ownerName: String = ""
+                            
+                            if let photoOwner = photoInfo["owner"] as? Dictionary<String, AnyObject> {
+                                ownerName = (photoOwner["realname"] as? String)!
+                            }
+                            
+                            let additionalPhotoInfo = AdditionalPhotoInformmation(title: title, imageDescription: description, photographerName: ownerName)
+                            self.additionalInfoArray.append(additionalPhotoInfo)
+                        }
+                    }
+                })
             }
 
             handler(true)

@@ -14,4 +14,6 @@ func flickrURL(forApiKey key: String, withAnnotation annotation: DroppablePin, a
     return "https://api.flickr.com/services/rest/?method=flickr.photos.search&api_key=\(key)&lat=\(annotation.coordinate.latitude)&lon=\(annotation.coordinate.longitude)&radius=1&radius_units=mi&per_page=\(number)&format=json&nojsoncallback=1"
 }
 
-
+func flickrGetPhotoData(forId id: String, withSecret secret: String) -> String {
+    return "https://api.flickr.com/services/rest/?method=flickr.photos.getInfo&api_key=\(apiKey)&photo_id=\(id)&secret=\(secret)&format=json&nojsoncallback=1"
+}
